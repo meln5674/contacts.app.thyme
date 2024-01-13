@@ -1,0 +1,6 @@
+tools:
+  templ:
+    go:
+      module: github.com/a-h/templ
+      version: v0.2.513
+      subpath: cmd/templ

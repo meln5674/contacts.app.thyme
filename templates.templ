@@ -1,0 +1,189 @@
+package main
+
+import (
+    "fmt"
+)
+
+templ layout(contents templ.Component) {
+    <!doctype html>
+    <html lang="">
+    <head>
+        <title>Contact App</title>
+        <link rel="stylesheet" href="https://the.missing.style/v0.2.0/missing.min.css"/>
+        <link rel="stylesheet" href="/static/site.css"/>
+        <script src="/static/js/htmx-1.8.0.js"/>
+        <script src="/static/js/_hyperscript-0.9.7.js"/>
+        <script src="/static/js/rsjs-menu.js" type="module"/>
+        <script defer src="https://unpkg.com/alpinejs@3/dist/cdn.min.js"/>
+    </head>
+    <body hx-boost="true">
+    <main>
+        <header>
+            <h1>
+                <all-caps>contacts.app</all-caps>
+                <sub-title>A Demo Contacts Application</sub-title>
+            </h1>
+        </header>
+        <!--
+        for _, message := range get_flashed_messages() {
+          <div class="flash">{ message }</div>
+        }
+        -->
+        @contents
+    </main>
+    </body>
+    </html>
+}
+
+templ indexTplInner(q string, contacts []Contact) {
+    <form action="/contacts" method="get" class="tool-bar">
+        <label for="search">Search Term</label>
+        <input id="search" type="search" name="q" value={ q }/>
+        <input type="submit" value="Search"/>
+    </form>
+    <table>
+        <thead>
+        <tr>
+            <th>First</th> <th>Last</th> <th>Phone</th> <th>Email</th> <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        for _, contact := range contacts {
+            <tr>
+                <td>{ contact.first }</td>
+                <td>{ contact.last }</td>
+                <td>{ contact.phone }</td>
+                <td>{ contact.email }</td>
+                <td><a href={ templ.SafeURL(fmt.Sprintf("/contacts/%d/edit", contact.id)) }>Edit</a>
+                    <a href={ templ.SafeURL(fmt.Sprintf("/contacts/%d", contact.id)) }>View</a>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    <p>
+        <a href="/contacts/new">Add Contact</a>
+    </p>
+
+}
+
+templ indexTpl(q string, contacts []Contact) {
+    @layout(indexTplInner(q, contacts))
+}
+
+templ contactsNewTpl(contact *Contact) {
+    @layout(contactsNewTplInner(contact))
+}
+
+templ contactsNewTplInner(contact *Contact) {
+<form action="/contacts/new" method="post">
+    <fieldset>
+        <legend>Contact Values</legend>
+        <p>
+            <label for="email">Email</label>
+            <input name="email" id="email" type="email" placeholder="Email" value={ contact.email }/>
+            if err, ok := contact.errors["email"]; ok {
+            <span class="error">{ err }</span>
+            }
+        </p>
+        <p>
+            <label for="first_name">First Name</label>
+            <input name="first_name" id="first_name" type="text" placeholder="First Name" value={ contact.first }/>
+            if err, ok := contact.errors["first"]; ok {
+            <span class="error">{ err }</span>
+            }
+        </p>
+        <p>
+            <label for="last_name">Last Name</label>
+            <input name="last_name" id="last_name" type="text" placeholder="Last Name" value={ contact.last }/>
+            if err, ok := contact.errors["last"]; ok {
+            <span class="error">{ err }</span>
+            }
+
+        </p>
+        <p>
+            <label for="phone">Phone</label>
+            <input name="phone" id="phone" type="text" placeholder="Phone" value={ contact.phone }/>
+            if err, ok := contact.errors["phone"]; ok {
+            <span class="error">{ err }</span>
+            }
+        </p>
+        <button>Save</button>
+    </fieldset>
+</form>
+
+<p>
+    <a href="/contacts">Back</a>
+</p>
+}
+
+templ contactsViewTpl(contact *Contact) {
+    @layout(contactsViewTplInner(contact))
+}
+
+templ contactsViewTplInner(contact *Contact) {
+<h1>{contact.first} {contact.last}</h1>
+
+<div>
+  <div>Phone: {contact.phone}</div>
+  <div>Email: {contact.email}</div>
+</div>
+
+<p>
+  <a href={ templ.SafeURL(fmt.Sprintf("/contacts/%d/edit", contact.id)) }>Edit</a>
+  <a href="/contacts">Back</a>
+</p>
+}
+
+templ contactsEditTpl(contact *Contact) {
+    @layout(contactsEditTplInner(contact))
+}
+
+templ contactsEditTplInner(contact *Contact) {
+    <form action={ templ.SafeURL(fmt.Sprintf("/contacts/%d/edit", contact.id)) } method="post">
+        <fieldset>
+            <legend>Contact Values</legend>
+              <p>
+                  <label for="email">Email</label>
+                  <input name="email" id="email" type="text" placeholder="Email"
+                         value={ contact.email }/>
+                  if err, ok := contact.errors["email"]; ok {
+                  <span class="error">{ err }</span>
+                  }
+              </p>
+              <p>
+                  <label for="first_name">First Name</label>
+                  <input name="first_name" id="first_name" type="text" placeholder="First Name"
+                         value={ contact.first }/>
+                  if err, ok := contact.errors["first"]; ok {
+                  <span class="error">{ err }</span>
+                  }
+              </p>
+              <p>
+                  <label for="last_name">Last Name</label>
+                  <input name="last_name" id="last_name" type="text" placeholder="Last Name"
+                         value={ contact.last }/>
+                  if err, ok := contact.errors["last"]; ok {
+                  <span class="error">{ err }</span>
+                  }
+              </p>
+              <p>
+                  <label for="phone">Phone</label>
+                  <input name="phone" id="phone" type="text" placeholder="Phone"
+                         value={ contact.phone }/>
+                  if err, ok := contact.errors["phone"]; ok {
+                  <span class="error">{ err }</span>
+                  }
+              </p>
+            <button>Save</button>
+        </fieldset>
+    </form>
+    <form action={ templ.SafeURL(fmt.Sprintf("/contacts/%d/delete", contact.id)) } method="post">
+        <button>Delete Contact</button>
+    </form>
+
+    <p>
+        <a href="/contacts/">Back</a>
+    </p>
+}
+
