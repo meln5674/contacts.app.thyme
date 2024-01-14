@@ -1,10 +1,10 @@
 package templates
 
 import (
-    "fmt"
+	"fmt"
 
-    "github.com/meln5674/hypermedia-systems-templ/routes"
-    "github.com/meln5674/hypermedia-systems-templ/model"
+	"github.com/meln5674/contacts.app.thyme/routes"
+	"github.com/meln5674/contacts.app.thyme/model"
 )
 
 templ Edit(contact *model.Contact) {
@@ -66,7 +66,7 @@ templ edit(contact *model.Contact) {
 		</fieldset>
 	</form>
 	<button
-        id="delete-btn"
+		id="delete-btn"
 		hx-delete={ string(templ.SafeURL(routes.ViewContactPathFor(contact.ID))) }
 		hx-push-url="true"
 		hx-confirm={ fmt.Sprintf("Delete contact %s?", contact.Email) }

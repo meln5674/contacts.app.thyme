@@ -9,8 +9,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	app "github.com/meln5674/hypermedia-systems-templ"
-	"github.com/meln5674/hypermedia-systems-templ/model"
+	app "github.com/meln5674/contacts.app.thyme"
+	"github.com/meln5674/contacts.app.thyme/model"
 )
 
 var _ = Describe("App", func() {

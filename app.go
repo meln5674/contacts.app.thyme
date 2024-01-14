@@ -12,9 +12,9 @@ import (
 
 	"github.com/meln5674/minimux"
 
-	"github.com/meln5674/hypermedia-systems-templ/model"
-	"github.com/meln5674/hypermedia-systems-templ/routes"
-	"github.com/meln5674/hypermedia-systems-templ/templates"
+	"github.com/meln5674/contacts.app.thyme/model"
+	"github.com/meln5674/contacts.app.thyme/routes"
+	"github.com/meln5674/contacts.app.thyme/templates"
 )
 
 func main() {

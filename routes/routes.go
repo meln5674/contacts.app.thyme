@@ -3,7 +3,7 @@ package routes
 import (
 	"fmt"
 
-	"github.com/meln5674/hypermedia-systems-templ/model"
+	"github.com/meln5674/contacts.app.thyme/model"
 )
 
 const (

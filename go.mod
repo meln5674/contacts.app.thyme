@@ -1,10 +1,9 @@
-module github.com/meln5674/hypermedia-systems-templ
+module github.com/meln5674/contacts.app.thyme
 
 go 1.21.3
 
-require github.com/a-h/templ v0.2.513
-
 require (
+	github.com/a-h/templ v0.2.513
 	github.com/meln5674/minimux v0.0.0-20240113235740-9c9c1a501f5e
 	github.com/onsi/biloba v0.1.6
 	github.com/onsi/ginkgo/v2 v2.14.0
