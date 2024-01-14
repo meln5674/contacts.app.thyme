@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestHypermediaSystemsTempl(t *testing.T) {
+func TestContactsAppThyme(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "HypermediaSystemsTempl Suite")
 }

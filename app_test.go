@@ -48,7 +48,7 @@ var _ = Describe("App", func() {
 			b.Navigate("http://localhost:8080/contacts")
 		})
 		It("should show the title", func() {
-			Eventually("body h1").Should(b.HaveInnerText("contacts.app A Demo Contacts Application"))
+			Eventually("body h1").Should(b.HaveInnerText("contacts.app\nA Demo Contacts Application"))
 		})
 		It("should have an empty table", func() {
 			Eventually("body table").Should(b.Exist())
