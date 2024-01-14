@@ -72,14 +72,18 @@ var _ = Describe("App", func() {
 				})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(saved).To(BeTrue(), "Contact was not saved")
+				// Need to renavigate since the update isn't automatic
+				b.Navigate("http://localhost:8080/contacts")
 			})
 			It("Should show it", func() {
-				b.Navigate("http://localhost:8080/contacts")
 				Eventually("body table tbody tr").Should(b.HaveCount(1))
 				Expect("body table tbody tr td:nth-child(1)").Should(b.HaveInnerText("first"))
 				Expect("body table tbody tr td:nth-child(2)").Should(b.HaveInnerText("last"))
 				Expect("body table tbody tr td:nth-child(3)").Should(b.HaveInnerText("555-123-4567"))
 				Expect("body table tbody tr td:nth-child(4)").Should(b.HaveInnerText("email@example.com"))
+			})
+			It("Should show 1 total contacts", func() {
+				Eventually("body > main > p > span").Should(b.HaveInnerText("(1 total Contacts)"))
 			})
 		})
 	})
