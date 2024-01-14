@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"strconv"
 
 	"github.com/meln5674/minimux"
 )
@@ -16,9 +18,12 @@ const (
 	indexPath         = "/"
 	contactsPath      = "/contacts"
 	newContactPath    = "/contacts/new"
-	viewContactPath   = "/contacts/([^/]+)"
-	editContactPath   = "/contacts/([^/]+)/edit"
-	deleteContactPath = "/contacts/([^/]+)/delete"
+	viewContactPath   = "/contacts/([0-9]+)"
+	editContactPath   = "/contacts/([0-9]+)/edit"
+	deleteContactPath = "/contacts/([0-9]+)/delete"
+	contactEmailPath  = "/contacts/([0-9]+)/email"
+	contactsCountPath = "/contacts/count"
+	staticPath        = "/static/.*"
 )
 
 func viewContactPathFor(id ContactID) string   { return fmt.Sprintf("/contacts/%d", id) }
@@ -27,19 +32,18 @@ func deleteContactPathFor(id ContactID) string { return fmt.Sprintf("/contacts/%
 
 func (a *app) Mux() *minimux.Mux {
 	return &minimux.Mux{
-		PreProcess: func(req *http.Request) (context.Context, func()) {
-			fmt.Printf("%s %s %s\n", req.Method, req.URL, req.UserAgent())
-			return minimux.CancelWhenDone(req)
-		},
-		PostProcess: func(ctx context.Context, req *http.Request, statusCode int, err error) {
-			fmt.Printf("%s %s %s %d %v\n", req.Method, req.URL, req.UserAgent(), statusCode, err)
-		},
+		PreProcess:     minimux.PreProcessorChain(minimux.CancelWhenDone, minimux.LogPendingRequest(os.Stdout)),
+		PostProcess:    minimux.LogCompletedRequest(os.Stdout),
 		DefaultHandler: minimux.NotFound,
 		Routes: []minimux.Route{
 			minimux.
+				PathPattern(staticPath).
+				WithMethods(http.MethodGet).
+				IsHandledBy(minimux.Simple(http.FileServer(http.Dir("./")))),
+			minimux.
 				LiteralPath(indexPath).
 				WithMethods(http.MethodGet).
-				IsHandledBy(minimux.RedirectingTo(contactsPath, http.StatusFound)),
+				IsHandledBy(minimux.RedirectingTo(contactsPath, http.StatusPermanentRedirect)),
 			minimux.
 				LiteralPath(contactsPath).
 				WithMethods(http.MethodGet).
@@ -59,6 +63,10 @@ func (a *app) Mux() *minimux.Mux {
 				WithMethods(http.MethodGet).
 				IsHandledByFunc(a.contactsView),
 			minimux.
+				PathWithVars(viewContactPath, "id").
+				WithMethods(http.MethodDelete).
+				IsHandledByFunc(a.contactsDelete),
+			minimux.
 				PathWithVars(editContactPath, "id").
 				WithMethods(http.MethodGet).
 				IsHandledByFunc(a.contactsEditGet),
@@ -67,20 +75,41 @@ func (a *app) Mux() *minimux.Mux {
 				WithMethods(http.MethodPost).
 				WithForm().
 				IsHandledByFunc(a.contactsEditPost),
+			/*
+				minimux.
+					PathWithVars(deleteContactPath, "id").
+					WithMethods(http.MethodPost).
+					IsHandledByFunc(a.contactsDelete),
+			*/
 			minimux.
-				PathWithVars(deleteContactPath, "id").
-				WithMethods(http.MethodPost).
-				IsHandledByFunc(a.contactsDelete),
+				PathWithVars(contactEmailPath, "id").
+				WithMethods(http.MethodGet).
+				WithForm().
+				IsHandledByFunc(a.contactsEmailGet),
+			minimux.
+				LiteralPath(contactsCountPath).
+				WithMethods(http.MethodGet).
+				IsHandledByFunc(a.contactsCount),
 		},
 	}
 }
 
-func (a *app) contacts(ctx context.Context, w http.ResponseWriter, req *http.Request, _ map[string]string, formErr error) (int, error) {
+func (a *app) contacts(ctx context.Context, w http.ResponseWriter, req *http.Request, _ map[string]string, formErr error) error {
+	var err error
 	if formErr != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		return http.StatusBadRequest, nil
+		return nil
 	}
 	search := req.Form.Get("q")
+	page := int64(1)
+	pageStr := req.Form.Get("page")
+	if pageStr != "" {
+		page, err = strconv.ParseInt(pageStr, 10, 64)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return nil
+		}
+	}
 	var contacts []Contact
 	if search != "" {
 		contacts = a.Contacts.search(search)
@@ -88,129 +117,168 @@ func (a *app) contacts(ctx context.Context, w http.ResponseWriter, req *http.Req
 		contacts = a.Contacts.all()
 	}
 	w.WriteHeader(http.StatusOK)
-	indexTpl(search, contacts).Render(ctx, w)
-	return http.StatusOK, nil
+	if req.Header.Get("HX-Trigger") == "search" {
+		return rowsTpl(contacts).Render(ctx, w)
+	}
+	return indexTpl(search, page, contacts).Render(ctx, w)
 }
 
-func (a *app) contactsNewGet(ctx context.Context, w http.ResponseWriter, req *http.Request, _ map[string]string, _ error) (int, error) {
+func (a *app) contactsNewGet(ctx context.Context, w http.ResponseWriter, req *http.Request, _ map[string]string, _ error) error {
 	w.WriteHeader(http.StatusOK)
-	contactsNewTpl(&Contact{}).Render(ctx, w)
-	return http.StatusOK, nil
+	return contactsNewTpl(&Contact{}).Render(ctx, w)
 }
 
-func (a *app) contactsNew(ctx context.Context, w http.ResponseWriter, req *http.Request, _ map[string]string, formErr error) (int, error) {
+func (a *app) contactsNew(ctx context.Context, w http.ResponseWriter, req *http.Request, _ map[string]string, formErr error) error {
 	if formErr != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		return http.StatusBadRequest, nil
+		return nil
 	}
 	c := Contact{
-		first: req.Form.Get("first_name"),
-		last:  req.Form.Get("last_name"),
-		phone: req.Form.Get("phone"),
-		email: req.Form.Get("email"),
+		First: req.Form.Get("first_name"),
+		Last:  req.Form.Get("last_name"),
+		Phone: req.Form.Get("phone"),
+		Email: req.Form.Get("email"),
 	}
-	if !a.Contacts.save(&c) {
+	saved, err := a.Contacts.save(&c)
+	if err != nil {
+		fmt.Printf("Failed to save %#v\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+	if !saved {
 		fmt.Printf("Failed to save %#v\n", c)
 		w.WriteHeader(http.StatusOK)
-		contactsNewTpl(&c).Render(ctx, w)
-		return http.StatusOK, nil
+		return contactsNewTpl(&c).Render(ctx, w)
 	}
 	fmt.Printf("Saved %#v\n", c)
-	http.Redirect(w, req, contactsPath, http.StatusFound)
-	return http.StatusFound, nil
+	http.Redirect(w, req, contactsPath, http.StatusSeeOther)
+	return nil
 }
 
-func (a *app) contactsView(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, _ error) (int, error) {
+func (a *app) contactsView(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, _ error) error {
 	idStr := pathVars["id"]
 	id, err := ParseContactID(idStr)
 	if err != nil {
 		fmt.Printf("%s is not a valid id\n", idStr)
 		w.WriteHeader(http.StatusBadRequest)
-		return http.StatusBadRequest, nil
+		return nil
 	}
 	contact, ok := a.Contacts.find(id)
 	if !ok {
 		fmt.Printf("No contact %d found\n", id)
 		w.WriteHeader(http.StatusNotFound)
-		return http.StatusNotFound, nil
+		return nil
 	}
 	fmt.Printf("Found contact %d %#v\n", id, contact)
 	w.WriteHeader(http.StatusOK)
-	contactsViewTpl(&contact).Render(ctx, w)
-	return http.StatusOK, nil
+	return contactsViewTpl(&contact).Render(ctx, w)
 }
 
-func (a *app) contactsEditGet(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, _ error) (int, error) {
+func (a *app) contactsEditGet(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, _ error) error {
 	idStr := pathVars["id"]
 	id, err := ParseContactID(idStr)
 	if err != nil {
 		fmt.Printf("%s is not a valid id\n", idStr)
 		w.WriteHeader(http.StatusBadRequest)
-		return http.StatusBadRequest, nil
+		return nil
 	}
 	contact, ok := a.Contacts.find(id)
 	if !ok {
 		fmt.Printf("No contact %d found\n", id)
 		w.WriteHeader(http.StatusNotFound)
-		return http.StatusNotFound, nil
+		return nil
 	}
 	fmt.Printf("Found contact %d %#v\n", id, contact)
 	w.WriteHeader(http.StatusOK)
-	contactsEditTpl(&contact).Render(ctx, w)
-	return http.StatusOK, nil
+	return contactsEditTpl(&contact).Render(ctx, w)
 }
 
-func (a *app) contactsEditPost(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, formErr error) (int, error) {
+func (a *app) contactsEditPost(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, formErr error) error {
 	if formErr != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		return http.StatusBadRequest, nil
+		return nil
 	}
 	idStr := pathVars["id"]
 	id, err := ParseContactID(idStr)
 	if err != nil {
 		fmt.Printf("%s is not a valid id\n", idStr)
 		w.WriteHeader(http.StatusBadRequest)
-		return http.StatusBadRequest, nil
+		return nil
 	}
 	contact, ok := a.Contacts.find(id)
 	if !ok {
 		fmt.Printf("No contact %d found\n", id)
 		w.WriteHeader(http.StatusNotFound)
-		return http.StatusNotFound, nil
+		return nil
 	}
 	fmt.Printf("Found contact %d %#v\n", id, contact)
 	contact = Contact{
-		id:    contact.id,
-		email: req.Form.Get("email"),
-		first: req.Form.Get("first_name"),
-		last:  req.Form.Get("last_name"),
-		phone: req.Form.Get("phone"),
+		ID:    contact.ID,
+		Email: req.Form.Get("email"),
+		First: req.Form.Get("first_name"),
+		Last:  req.Form.Get("last_name"),
+		Phone: req.Form.Get("phone"),
 	}
-	if !a.Contacts.save(&contact) {
+	saved, err := a.Contacts.save(&contact)
+	if err != nil {
+		fmt.Printf("Failed to save %#v\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+	if !saved {
 		w.WriteHeader(http.StatusOK)
-		contactsEditTpl(&contact).Render(ctx, w)
-		return http.StatusOK, nil
+		return contactsEditTpl(&contact).Render(ctx, w)
 	}
-	http.Redirect(w, req, viewContactPathFor(id), http.StatusFound)
-	return http.StatusFound, nil
+	http.Redirect(w, req, viewContactPathFor(id), http.StatusSeeOther)
+	return nil
 }
 
-func (a *app) contactsDelete(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, _ error) (int, error) {
+func (a *app) contactsDelete(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, _ error) error {
 	idStr := pathVars["id"]
 	id, err := ParseContactID(idStr)
 	if err != nil {
 		fmt.Printf("%s is not a valid id\n", idStr)
 		w.WriteHeader(http.StatusBadRequest)
-		return http.StatusBadRequest, nil
+		return nil
 	}
 	contact, ok := a.Contacts.find(id)
 	if !ok {
 		fmt.Printf("No contact %d found\n", id)
 		w.WriteHeader(http.StatusNotFound)
-		return http.StatusNotFound, nil
+		return nil
 	}
 	fmt.Printf("Found contact %d %#v\n", id, contact)
-	a.Contacts.delete(id)
-	http.Redirect(w, req, contactsPath, http.StatusFound)
-	return http.StatusFound, nil
+	err = a.Contacts.delete(id)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+	w.WriteHeader(http.StatusOK)
+	if req.Header.Get("HX-Trigger") == "delete-btn" {
+		http.Redirect(w, req, contactsPath, http.StatusSeeOther)
+		return nil
+	}
+	return nil
+}
+
+func (a *app) contactsEmailGet(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, _ error) error {
+	idStr := pathVars["id"]
+	id, err := ParseContactID(idStr)
+	if err != nil {
+		fmt.Printf("%s is not a valid id\n", idStr)
+		w.WriteHeader(http.StatusBadRequest)
+		return nil
+	}
+	contact, _ := a.Contacts.find(id)
+	contact.Email = req.Form.Get("email")
+	a.Contacts.validate(&contact)
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(contact.errors["email"]))
+	return nil
+}
+
+func (a *app) contactsCount(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, _ error) error {
+	w.WriteHeader(http.StatusOK)
+	_, err := fmt.Fprintf(w, "(%d total Contacts)", a.Contacts.count())
+	return err
 }

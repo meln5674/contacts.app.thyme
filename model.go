@@ -1,6 +1,9 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -13,25 +16,26 @@ func ParseContactID(s string) (ContactID, error) {
 }
 
 type Contact struct {
-	id     ContactID
-	first  string
-	last   string
-	email  string
-	phone  string
+	ID     ContactID `json:"id"`
+	First  string    `json:"first"`
+	Last   string    `json:"last"`
+	Email  string    `json:"email"`
+	Phone  string    `json:"phone"`
 	errors map[string]string
 }
 
 type Contacts struct {
 	contacts map[ContactID]Contact
+	path     string
 }
 
 func (c *Contacts) validate(contact *Contact) bool {
 	errors := make(map[string]string, 4)
-	if contact.email == "" {
+	if contact.Email == "" {
 		errors["email"] = "Email Required"
 	}
 	for _, other := range c.contacts {
-		if other.email == contact.email && other.id != contact.id {
+		if other.Email == contact.Email && other.ID != contact.ID {
 			errors["email"] = "Email Must Be Unique"
 			break
 		}
@@ -40,35 +44,58 @@ func (c *Contacts) validate(contact *Contact) bool {
 	return len(contact.errors) == 0
 }
 
-func (c *Contacts) save(contact *Contact) bool {
-	if !c.validate(contact) {
-		return false
+func (c *Contacts) load() error {
+	f, err := os.Open(c.path)
+	if errors.Is(err, os.ErrNotExist) {
+		c.contacts = make(map[ContactID]Contact)
+		return nil
 	}
-	if contact.id == 0 {
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return json.NewDecoder(f).Decode(&c.contacts)
+}
+
+func (c *Contacts) save(contact *Contact) (bool, error) {
+	if !c.validate(contact) {
+		return false, nil
+	}
+	if contact.ID == 0 {
 		newID := ContactID(0)
 		for _, other := range c.contacts {
-			if other.id > newID {
-				newID = other.id
+			if other.ID > newID {
+				newID = other.ID
 			}
 		}
 		newID++
-		contact.id = newID
+		contact.ID = newID
 	}
-	c.contacts[contact.id] = *contact
-	// TODO: DB
-	return true
+	c.contacts[contact.ID] = *contact
+
+	f, err := os.Create(c.path)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	err = json.NewEncoder(f).Encode(&c.contacts)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (c *Contacts) search(q string) []Contact {
 	results := make([]Contact, 0, len(c.contacts))
 	for _, contact := range c.contacts {
-		matches := strings.Contains(contact.first, q) ||
-			strings.Contains(contact.last, q) ||
-			strings.Contains(contact.email, q) ||
-			strings.Contains(contact.phone, q)
-		if matches {
-			results = append(results, contact)
+		matches := strings.Contains(contact.First, q) ||
+			strings.Contains(contact.Last, q) ||
+			strings.Contains(contact.Email, q) ||
+			strings.Contains(contact.Phone, q)
+		if !matches {
+			continue
 		}
+		results = append(results, contact)
 	}
 	return results
 }
@@ -86,6 +113,16 @@ func (c *Contacts) find(id ContactID) (Contact, bool) {
 	return contact, ok
 }
 
-func (c *Contacts) delete(id ContactID) {
+func (c *Contacts) delete(id ContactID) error {
 	delete(c.contacts, id)
+	f, err := os.Create(c.path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return json.NewEncoder(f).Encode(&c.contacts)
+}
+
+func (c *Contacts) count() int {
+	return len(c.contacts)
 }
