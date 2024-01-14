@@ -28,6 +28,7 @@ func main() {
 	go func() {
 		<-signals
 		signal.Stop(signals)
+		close(stop)
 	}()
 
 	app := &App{Contacts: model.At(*dbPath)}
@@ -57,7 +58,7 @@ func (a *App) LoadAndRun(addr string, stop chan struct{}) error {
 	log.Printf("Starting\n")
 	err = srv.ListenAndServe()
 	if err != nil {
-		return fmt.Errorf("Error running server: %#v", err)
+		return err
 	}
 	return nil
 }
