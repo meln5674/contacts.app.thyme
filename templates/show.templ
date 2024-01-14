@@ -1,0 +1,24 @@
+package templates
+
+import (
+    "github.com/meln5674/hypermedia-systems-templ/model"
+    "github.com/meln5674/hypermedia-systems-templ/routes"
+)
+
+templ Show(contact *model.Contact) {
+	@layout(show(contact))
+}
+
+templ show(contact *model.Contact) {
+	<h1>{ contact.First } { contact.Last }</h1>
+	<div>
+		<div>Phone: { contact.Phone }</div>
+		<div>Email: { contact.Email }</div>
+	</div>
+	<p>
+		<a href={ templ.SafeURL(routes.EditContactPathFor(contact.ID)) }>Edit</a>
+		<a href="/contacts">Back</a>
+	</p>
+}
+
+

@@ -1,0 +1,80 @@
+package templates
+
+import (
+    "fmt"
+
+    "github.com/meln5674/hypermedia-systems-templ/routes"
+    "github.com/meln5674/hypermedia-systems-templ/model"
+)
+
+templ Edit(contact *model.Contact) {
+	@layout(edit(contact))
+}
+
+templ edit(contact *model.Contact) {
+	<form action={ templ.SafeURL(routes.EditContactPathFor(contact.ID)) } method="post">
+		<fieldset>
+			<legend>Contact Values</legend>
+			<p>
+				<label for="email">Email</label>
+				<input
+					name="email"
+					id="email"
+					type="email"
+					hx-get={ string(templ.SafeURL(routes.ContactEmailPathFor(contact.ID))) }
+					hx-target="next .error"
+					hx-trigger="change, keyup delay:200ms changed"
+					placeholder="Email"
+					value={ contact.Email }
+				/>
+				<span class="error">{ contact.Errors["email"] }</span>
+			</p>
+			<p>
+				<label for="first_name">First Name</label>
+				<input
+					name="first_name"
+					id="first_name"
+					type="text"
+					placeholder="First Name"
+					value={ contact.First }
+				/>
+				<span class="error">{ contact.Errors["first"] }</span>
+			</p>
+			<p>
+				<label for="last_name">Last Name</label>
+				<input
+					name="last_name"
+					id="last_name"
+					type="text"
+					placeholder="Last Name"
+					value={ contact.Last }
+				/>
+				<span class="error">{ contact.Errors["last"] }</span>
+			</p>
+			<p>
+				<label for="phone">Phone</label>
+				<input
+					name="phone"
+					id="phone"
+					type="text"
+					placeholder="Phone"
+					value={ contact.Phone }
+				/>
+				<span class="error">{ contact.Errors["phone"] }</span>
+			</p>
+			<button>Save</button>
+		</fieldset>
+	</form>
+	<button
+        id="delete-btn"
+		hx-delete={ string(templ.SafeURL(routes.ViewContactPathFor(contact.ID))) }
+		hx-push-url="true"
+		hx-confirm={ fmt.Sprintf("Delete contact %s?", contact.Email) }
+		hx-target="body"
+	>
+		Delete Contact
+	</button>
+	<p>
+		<a href="/contacts">Back</a>
+	</p>
+}

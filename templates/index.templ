@@ -1,0 +1,63 @@
+package templates
+
+import (
+	"fmt"
+
+    "github.com/meln5674/hypermedia-systems-templ/model"
+)
+
+templ Index(q string, page int64, contacts []model.Contact) {
+	@layout(index(q, page, contacts))
+}
+
+templ index(q string, page int64, contacts []model.Contact) {
+	<form action="/contacts" method="get" class="tool-bar">
+		<label for="search">Search Term</label>
+		<input
+			id="search"
+			type="search"
+			name="q"
+			value={ q }
+			hx-get="/contacts"
+			hx-trigger="search, keyup delay:200ms changed"
+			hx-target="tbody"
+			hx-select="tbody tr"
+			hx-push-url="true"
+			hx-indicator="#spinner"
+		/>
+		<img id="spinner" class="htmx-indicator" src="/static/img/spinning-circles.svg" alt="Request In Flight..."/>
+		<input type="submit" value="Search"/>
+	</form>
+	<table>
+		<thead>
+			<tr>
+				<th>First</th>
+				<th>Last</th>
+				<th>Phone</th>
+				<th>Email</th>
+				<th></th>
+			</tr>
+		</thead>
+		<tbody>
+			@Rows(contacts)
+		</tbody>
+	</table>
+	<div>
+		<span style="float: right">
+			if page > 1 {
+				<a href={ templ.SafeURL(fmt.Sprintf("/contacts?page=%d", page-1)) }>Previous</a>
+			}
+			if len(contacts) == 10 {
+				<a href={ templ.SafeURL(fmt.Sprintf("/contacts?page=%d", page+1)) }>Next</a>
+			}
+		</span>
+	</div>
+	<p>
+		<a href="/contacts/new">Add Contact</a>
+		<span hx-get="/contacts/count" hx-trigger="revealed">
+			<img id="spinner" class="htmx-indicator" src="/static/img/spinning-circles.svg"/>
+		</span>
+	</p>
+}
+
+

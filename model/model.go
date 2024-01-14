@@ -1,4 +1,4 @@
-package main
+package model
 
 import (
 	"encoding/json"
@@ -21,7 +21,7 @@ type Contact struct {
 	Last   string    `json:"last"`
 	Email  string    `json:"email"`
 	Phone  string    `json:"phone"`
-	errors map[string]string
+	Errors map[string]string
 }
 
 type Contacts struct {
@@ -29,7 +29,14 @@ type Contacts struct {
 	path     string
 }
 
-func (c *Contacts) validate(contact *Contact) bool {
+func At(path string) Contacts {
+	return Contacts{
+		path:     path,
+		contacts: make(map[ContactID]Contact),
+	}
+}
+
+func (c *Contacts) Validate(contact *Contact) bool {
 	errors := make(map[string]string, 4)
 	if contact.Email == "" {
 		errors["email"] = "Email Required"
@@ -40,11 +47,11 @@ func (c *Contacts) validate(contact *Contact) bool {
 			break
 		}
 	}
-	contact.errors = errors
-	return len(contact.errors) == 0
+	contact.Errors = errors
+	return len(contact.Errors) == 0
 }
 
-func (c *Contacts) load() error {
+func (c *Contacts) Load() error {
 	f, err := os.Open(c.path)
 	if errors.Is(err, os.ErrNotExist) {
 		c.contacts = make(map[ContactID]Contact)
@@ -57,8 +64,8 @@ func (c *Contacts) load() error {
 	return json.NewDecoder(f).Decode(&c.contacts)
 }
 
-func (c *Contacts) save(contact *Contact) (bool, error) {
-	if !c.validate(contact) {
+func (c *Contacts) Save(contact *Contact) (bool, error) {
+	if !c.Validate(contact) {
 		return false, nil
 	}
 	if contact.ID == 0 {
@@ -85,7 +92,7 @@ func (c *Contacts) save(contact *Contact) (bool, error) {
 	return true, nil
 }
 
-func (c *Contacts) search(q string) []Contact {
+func (c *Contacts) Search(q string) []Contact {
 	results := make([]Contact, 0, len(c.contacts))
 	for _, contact := range c.contacts {
 		matches := strings.Contains(contact.First, q) ||
@@ -100,7 +107,7 @@ func (c *Contacts) search(q string) []Contact {
 	return results
 }
 
-func (c *Contacts) all() []Contact {
+func (c *Contacts) All() []Contact {
 	results := make([]Contact, 0, len(c.contacts))
 	for _, contact := range c.contacts {
 		results = append(results, contact)
@@ -108,12 +115,12 @@ func (c *Contacts) all() []Contact {
 	return results
 }
 
-func (c *Contacts) find(id ContactID) (Contact, bool) {
+func (c *Contacts) Find(id ContactID) (Contact, bool) {
 	contact, ok := c.contacts[id]
 	return contact, ok
 }
 
-func (c *Contacts) delete(id ContactID) error {
+func (c *Contacts) Delete(id ContactID) error {
 	delete(c.contacts, id)
 	f, err := os.Create(c.path)
 	if err != nil {
@@ -123,6 +130,6 @@ func (c *Contacts) delete(id ContactID) error {
 	return json.NewEncoder(f).Encode(&c.contacts)
 }
 
-func (c *Contacts) count() int {
+func (c *Contacts) Count() int {
 	return len(c.contacts)
 }
