@@ -2,5 +2,5 @@ tools:
   templ:
     go:
       module: github.com/a-h/templ
-      version: v0.2.513
-      subpath: cmd/templ
+      version: $(shell $(MAKE_ENV_GO) mod edit -print | grep github.com/a-h/templ | awk '{ print $$3 }')
+      subPath: cmd/templ

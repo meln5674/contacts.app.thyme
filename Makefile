@@ -12,7 +12,7 @@ TEMPLATE_OUTS = \
 
 
 bin/app: app.go $(TEMPLATE_OUTS)
-	go build -o bin/app ./
+	$(MAKE_ENV_GO) build -o bin/app ./
 
 $(TEMPLATE_OUTS): $(TEMPL) $(shell find ./ -name '*.templ')
 	$(TEMPL) generate || ( rm templates/*_templ.go; exit 1 )
@@ -20,13 +20,13 @@ $(TEMPLATE_OUTS): $(TEMPL) $(shell find ./ -name '*.templ')
 
 .PHONY: run
 run: $(TEMPLATE_OUTS)
-	go run ./
+	$(MAKE_ENV_GO) run ./
 
 .PHONY: fmt
 fmt: $(TEMPL)
-	go fmt ./...
+	$(MAKE_ENV_GO) fmt ./...
 	$(TEMPL) fmt ./
 
 .PHONY: vet
 vet: $(TEMPLATE_OUTS)
-	go vet ./...
+	$(MAKE_ENV_GO) vet ./...
