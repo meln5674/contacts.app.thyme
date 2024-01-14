@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 
 	"github.com/meln5674/minimux"
@@ -15,21 +18,51 @@ import (
 )
 
 func main() {
-	app := &app{Contacts: model.At("db.json")}
-	err := app.Contacts.Load()
+	dbPath := flag.String("db", "db.json", "Path to Database JSON file")
+	addr := flag.String("addr", "localhost:8080", "Address and port to listen on")
+	flag.Parse()
+
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt)
+	stop := make(chan struct{})
+	go func() {
+		<-signals
+		signal.Stop(signals)
+	}()
+
+	app := &App{Contacts: model.At(*dbPath)}
+	err := app.LoadAndRun(*addr, stop)
 	if err != nil {
-		fmt.Printf("Could not load database: %#v\n", err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
-	fmt.Printf("Starting\n")
-	http.ListenAndServe("localhost:8080", app.Mux())
 }
 
-type app struct {
+type App struct {
 	model.Contacts
 }
 
-func (a *app) Mux() *minimux.Mux {
+func (a *App) LoadAndRun(addr string, stop chan struct{}) error {
+	err := a.Contacts.Load()
+	if err != nil {
+		return fmt.Errorf("Could not load database: %#v", err)
+	}
+	srv := http.Server{
+		Addr:    addr,
+		Handler: a.Mux(),
+	}
+	go func() {
+		<-stop
+		srv.Close()
+	}()
+	log.Printf("Starting\n")
+	err = srv.ListenAndServe()
+	if err != nil {
+		return fmt.Errorf("Error running server: %#v", err)
+	}
+	return nil
+}
+
+func (a *App) Mux() *minimux.Mux {
 	return &minimux.Mux{
 		PreProcess:     minimux.PreProcessorChain(minimux.CancelWhenDone, minimux.LogPendingRequest(os.Stdout)),
 		PostProcess:    minimux.LogCompletedRequest(os.Stdout),
@@ -89,7 +122,7 @@ func (a *app) Mux() *minimux.Mux {
 	}
 }
 
-func (a *app) contacts(ctx context.Context, w http.ResponseWriter, req *http.Request, _ map[string]string, formErr error) error {
+func (a *App) contacts(ctx context.Context, w http.ResponseWriter, req *http.Request, _ map[string]string, formErr error) error {
 	var err error
 	if formErr != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -118,12 +151,12 @@ func (a *app) contacts(ctx context.Context, w http.ResponseWriter, req *http.Req
 	return templates.Index(search, page, contacts).Render(ctx, w)
 }
 
-func (a *app) contactsNewGet(ctx context.Context, w http.ResponseWriter, req *http.Request, _ map[string]string, _ error) error {
+func (a *App) contactsNewGet(ctx context.Context, w http.ResponseWriter, req *http.Request, _ map[string]string, _ error) error {
 	w.WriteHeader(http.StatusOK)
 	return templates.New(&model.Contact{}).Render(ctx, w)
 }
 
-func (a *app) contactsNew(ctx context.Context, w http.ResponseWriter, req *http.Request, _ map[string]string, formErr error) error {
+func (a *App) contactsNew(ctx context.Context, w http.ResponseWriter, req *http.Request, _ map[string]string, formErr error) error {
 	if formErr != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return nil
@@ -150,7 +183,7 @@ func (a *app) contactsNew(ctx context.Context, w http.ResponseWriter, req *http.
 	return nil
 }
 
-func (a *app) contactsView(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, _ error) error {
+func (a *App) contactsView(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, _ error) error {
 	idStr := pathVars["id"]
 	id, err := model.ParseContactID(idStr)
 	if err != nil {
@@ -169,7 +202,7 @@ func (a *app) contactsView(ctx context.Context, w http.ResponseWriter, req *http
 	return templates.Show(&contact).Render(ctx, w)
 }
 
-func (a *app) contactsEditGet(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, _ error) error {
+func (a *App) contactsEditGet(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, _ error) error {
 	idStr := pathVars["id"]
 	id, err := model.ParseContactID(idStr)
 	if err != nil {
@@ -188,7 +221,7 @@ func (a *app) contactsEditGet(ctx context.Context, w http.ResponseWriter, req *h
 	return templates.Edit(&contact).Render(ctx, w)
 }
 
-func (a *app) contactsEditPost(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, formErr error) error {
+func (a *App) contactsEditPost(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, formErr error) error {
 	if formErr != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return nil
@@ -228,7 +261,7 @@ func (a *app) contactsEditPost(ctx context.Context, w http.ResponseWriter, req *
 	return nil
 }
 
-func (a *app) contactsDelete(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, _ error) error {
+func (a *App) contactsDelete(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, _ error) error {
 	idStr := pathVars["id"]
 	id, err := model.ParseContactID(idStr)
 	if err != nil {
@@ -256,7 +289,7 @@ func (a *app) contactsDelete(ctx context.Context, w http.ResponseWriter, req *ht
 	return nil
 }
 
-func (a *app) contactsEmailGet(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, _ error) error {
+func (a *App) contactsEmailGet(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, _ error) error {
 	idStr := pathVars["id"]
 	id, err := model.ParseContactID(idStr)
 	if err != nil {
@@ -272,7 +305,7 @@ func (a *app) contactsEmailGet(ctx context.Context, w http.ResponseWriter, req *
 	return nil
 }
 
-func (a *app) contactsCount(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, _ error) error {
+func (a *App) contactsCount(ctx context.Context, w http.ResponseWriter, req *http.Request, pathVars map[string]string, _ error) error {
 	w.WriteHeader(http.StatusOK)
 	_, err := fmt.Fprintf(w, "(%d total Contacts)", a.Contacts.Count())
 	return err

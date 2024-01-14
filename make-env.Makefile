@@ -36,15 +36,33 @@ $(LOCALBIN):
 $(LOCALBIN)/: $(LOCALBIN) 
 
 
+GINKGO ?= $(LOCALBIN)/ginkgo
+$(GINKGO): $(MAKE_ENV_GO) 
+	GOBIN=$(LOCALBIN)/.make-env/go/github.com/onsi/ginkgo/v2/ginkgo/$(shell $(MAKE_ENV_GO) mod edit -print | grep github.com/onsi/ginkgo/v2 | awk '{ print $$2 }') \
+	$(MAKE_ENV_GO) install \
+		github.com/onsi/ginkgo/v2/ginkgo@$(shell $(MAKE_ENV_GO) mod edit -print | grep github.com/onsi/ginkgo/v2 | awk '{ print $$2 }')
+	$(MAKE_ENV_RM) -f $(GINKGO)
+	$(MAKE_ENV_LN) -s $(LOCALBIN)/.make-env/go/github.com/onsi/ginkgo/v2/ginkgo/$(shell $(MAKE_ENV_GO) mod edit -print | grep github.com/onsi/ginkgo/v2 | awk '{ print $$2 }')/ginkgo $(GINKGO)
+.PHONY: ginkgo
+ginkgo: $(GINKGO)
+
+
+
 TEMPL ?= $(LOCALBIN)/templ
 $(TEMPL): $(MAKE_ENV_GO) 
-	GOBIN=$(LOCALBIN)/.make-env/go/github.com/a-h/templ/cmd/templ/$(shell $(MAKE_ENV_GO) mod edit -print | grep github.com/a-h/templ | awk '{ print $$3 }') \
+	GOBIN=$(LOCALBIN)/.make-env/go/github.com/a-h/templ/cmd/templ/$(shell $(MAKE_ENV_GO) mod edit -print | grep github.com/a-h/templ | awk '{ print $$2 }') \
 	$(MAKE_ENV_GO) install \
-		github.com/a-h/templ/cmd/templ@$(shell $(MAKE_ENV_GO) mod edit -print | grep github.com/a-h/templ | awk '{ print $$3 }')
+		github.com/a-h/templ/cmd/templ@$(shell $(MAKE_ENV_GO) mod edit -print | grep github.com/a-h/templ | awk '{ print $$2 }')
 	$(MAKE_ENV_RM) -f $(TEMPL)
-	$(MAKE_ENV_LN) -s $(LOCALBIN)/.make-env/go/github.com/a-h/templ/cmd/templ/$(shell $(MAKE_ENV_GO) mod edit -print | grep github.com/a-h/templ | awk '{ print $$3 }')/templ $(TEMPL)
+	$(MAKE_ENV_LN) -s $(LOCALBIN)/.make-env/go/github.com/a-h/templ/cmd/templ/$(shell $(MAKE_ENV_GO) mod edit -print | grep github.com/a-h/templ | awk '{ print $$2 }')/templ $(TEMPL)
 .PHONY: templ
 templ: $(TEMPL)
+
+.PHONY: build-tools
+build-tools: $(TEMPL)
+
+.PHONY: test-tools
+test-tools: $(GINKGO)
 
 make-env.Makefile: make-env.yaml
 	make-env --config 'make-env.yaml' --out 'make-env.Makefile'

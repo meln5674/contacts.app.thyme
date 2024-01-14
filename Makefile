@@ -30,3 +30,7 @@ fmt: $(TEMPL)
 .PHONY: vet
 vet: $(TEMPLATE_OUTS)
 	$(MAKE_ENV_GO) vet ./...
+
+.PHONY: test
+test: $(TEMPLATE_OUTS) $(GINKGO)
+	$(GINKGO) run -v .
